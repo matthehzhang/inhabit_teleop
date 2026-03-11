@@ -1,0 +1,3 @@
+  cd /home/matthew/projects/inhabit_teleop
+  source ./tools/env_unitree_sdk2_local.sh
+  ./programs/build/g1_left_wrist_serial /dev/ttyACM1
