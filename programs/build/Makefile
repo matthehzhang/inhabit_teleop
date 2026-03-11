@@ -57,10 +57,10 @@ RM = /opt/st/stm32cubeclt_1.21.0/CMake/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/matthew/projects/luke_unitree/programs
+CMAKE_SOURCE_DIR = /home/matthew/projects/inhabit_teleop/programs
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/matthew/projects/luke_unitree/programs/build
+CMAKE_BINARY_DIR = /home/matthew/projects/inhabit_teleop/programs/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -87,9 +87,9 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/luke_unitree/programs/build/CMakeFiles /home/matthew/projects/luke_unitree/programs/build//CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles /home/matthew/projects/inhabit_teleop/programs/build//CMakeFiles/progress.marks
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/luke_unitree/programs/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target

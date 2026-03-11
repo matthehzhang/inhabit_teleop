@@ -43,14 +43,9 @@ constexpr double kCommandDtSec = 0.001;
 constexpr double kPrintPeriodSec = 2.0;
 constexpr float kPosStopF = 2.146E+9F;
 constexpr float kVelStopF = 16000.0F;
-constexpr float kWristKp = 32.0F;
-constexpr float kWristKd = 2.4F;
-constexpr float kVelocityLimit = 4.0F;
-constexpr float kPredictionLeadSec = 0.0F;
-constexpr float kInputFilterAlpha = 0.18F;
-constexpr float kInputDeadband = 0.012F;
-constexpr float kInputReleaseband = 0.02F;
-constexpr std::size_t kMedianWindowSize = 5;
+constexpr float kWristKp = 24.0F;
+constexpr float kWristKd = 1.6F;
+constexpr std::size_t kAverageWindowSize = 4;
 
 constexpr int kNumMotors = 35;
 constexpr int kJointLeftWristRoll = 19;
@@ -73,9 +68,12 @@ float Clamp(float value, float lower, float upper) {
     return std::max(lower, std::min(upper, value));
 }
 
-float Median(std::array<float, kMedianWindowSize> values) {
-    std::sort(values.begin(), values.end());
-    return values[kMedianWindowSize / 2];
+float Average(const std::array<float, kAverageWindowSize> &values) {
+    float sum = 0.0F;
+    for (float value : values) {
+        sum += value;
+    }
+    return sum / static_cast<float>(kAverageWindowSize);
 }
 
 std::uint16_t Crc16Ccitt(const std::uint8_t *data, std::size_t len) {
@@ -372,53 +370,22 @@ public:
             } else {
                 input_history_[i][input_history_index_] = raw_target;
             }
-            const float median_target = Median(input_history_[i]);
+            const float filtered_target = Average(input_history_[i]);
 
-            float filtered_target = median_target;
-            if (have_filtered_targets_) {
-                const float smoothed =
-                    filtered_targets_[i] + kInputFilterAlpha * (median_target - filtered_targets_[i]);
-                const float delta = smoothed - latched_targets_[i];
-
-                if (std::abs(delta) < kInputDeadband) {
-                    filtered_target = latched_targets_[i];
-                } else if (std::abs(delta) < kInputReleaseband) {
-                    filtered_target = latched_targets_[i];
-                } else {
-                    latched_targets_[i] = smoothed;
-                    filtered_target = smoothed;
-                }
-            } else {
-                latched_targets_[i] = filtered_target;
-            }
-
-            float velocity = 0.0F;
-            if (have_last_packet_ && have_filtered_targets_) {
-                const double dt = std::chrono::duration<double>(packet.received_at - last_packet_time_).count();
-                if (dt > 1e-4) {
-                    velocity = Clamp(
-                        static_cast<float>((filtered_target - filtered_targets_[i]) / dt),
-                        -kVelocityLimit,
-                        kVelocityLimit);
-                }
-            }
-
-            const float predicted_target = filtered_target + velocity * kPredictionLeadSec;
+            const float predicted_target = filtered_target;
             last_targets_[i] = raw_target;
             filtered_targets_[i] = filtered_target;
 
             low_cmd_.motor_cmd()[joint].mode() = 1;
             low_cmd_.motor_cmd()[joint].q() = predicted_target;
-            low_cmd_.motor_cmd()[joint].dq() = velocity;
+            low_cmd_.motor_cmd()[joint].dq() = 0.0F;
             low_cmd_.motor_cmd()[joint].kp() = kWristKp;
             low_cmd_.motor_cmd()[joint].kd() = kWristKd;
             low_cmd_.motor_cmd()[joint].tau() = 0.0F;
         }
 
-        last_packet_time_ = packet.received_at;
-        have_last_packet_ = true;
         have_filtered_targets_ = true;
-        input_history_index_ = (input_history_index_ + 1) % kMedianWindowSize;
+        input_history_index_ = (input_history_index_ + 1) % kAverageWindowSize;
 
         if (!reported_packet_) {
             std::cout << std::fixed << std::setprecision(3)
@@ -462,15 +429,12 @@ private:
     ChannelPublisherPtr<unitree_hg::msg::dds_::LowCmd_> lowcmd_publisher_;
     ChannelSubscriberPtr<unitree_hg::msg::dds_::LowState_> lowstate_subscriber_;
     bool have_state_ = false;
-    bool have_last_packet_ = false;
     bool have_filtered_targets_ = false;
     bool reported_packet_ = false;
     std::array<float, 3> last_targets_{0.0F, 0.0F, 0.0F};
     std::array<float, 3> filtered_targets_{0.0F, 0.0F, 0.0F};
-    std::array<float, 3> latched_targets_{0.0F, 0.0F, 0.0F};
-    std::array<std::array<float, kMedianWindowSize>, 3> input_history_{};
+    std::array<std::array<float, kAverageWindowSize>, 3> input_history_{};
     std::size_t input_history_index_ = 0;
-    std::chrono::steady_clock::time_point last_packet_time_{};
 };
 
 }  // namespace

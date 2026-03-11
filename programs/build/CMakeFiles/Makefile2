@@ -54,10 +54,10 @@ RM = /opt/st/stm32cubeclt_1.21.0/CMake/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/matthew/projects/luke_unitree/programs
+CMAKE_SOURCE_DIR = /home/matthew/projects/inhabit_teleop/programs
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/matthew/projects/luke_unitree/programs/build
+CMAKE_BINARY_DIR = /home/matthew/projects/inhabit_teleop/programs/build
 
 #=============================================================================
 # Directory level rules for the build root directory
@@ -81,14 +81,14 @@ clean: CMakeFiles/g1_left_wrist_serial.dir/clean
 CMakeFiles/g1_left_wrist_serial.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_left_wrist_serial.dir/build.make CMakeFiles/g1_left_wrist_serial.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/g1_left_wrist_serial.dir/build.make CMakeFiles/g1_left_wrist_serial.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/matthew/projects/luke_unitree/programs/build/CMakeFiles --progress-num=1,2 "Built target g1_left_wrist_serial"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles --progress-num=1,2 "Built target g1_left_wrist_serial"
 .PHONY : CMakeFiles/g1_left_wrist_serial.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/g1_left_wrist_serial.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/luke_unitree/programs/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/g1_left_wrist_serial.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/luke_unitree/programs/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles 0
 .PHONY : CMakeFiles/g1_left_wrist_serial.dir/rule
 
 # Convenience name for target.

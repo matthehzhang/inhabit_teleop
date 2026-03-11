@@ -53,10 +53,10 @@ RM = /opt/st/stm32cubeclt_1.21.0/CMake/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/matthew/projects/luke_unitree/programs
+CMAKE_SOURCE_DIR = /home/matthew/projects/inhabit_teleop/programs
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/matthew/projects/luke_unitree/programs/build
+CMAKE_BINARY_DIR = /home/matthew/projects/inhabit_teleop/programs/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/g1_left_wrist_serial.dir/depend.make
@@ -70,18 +70,18 @@ include CMakeFiles/g1_left_wrist_serial.dir/progress.make
 include CMakeFiles/g1_left_wrist_serial.dir/flags.make
 
 CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o: CMakeFiles/g1_left_wrist_serial.dir/flags.make
-CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o: /home/matthew/projects/luke_unitree/programs/g1_left_wrist_serial.cpp
+CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o: /home/matthew/projects/inhabit_teleop/programs/g1_left_wrist_serial.cpp
 CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o: CMakeFiles/g1_left_wrist_serial.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/matthew/projects/luke_unitree/programs/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o -MF CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o.d -o CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o -c /home/matthew/projects/luke_unitree/programs/g1_left_wrist_serial.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o -MF CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o.d -o CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o -c /home/matthew/projects/inhabit_teleop/programs/g1_left_wrist_serial.cpp
 
 CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/matthew/projects/luke_unitree/programs/g1_left_wrist_serial.cpp > CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/matthew/projects/inhabit_teleop/programs/g1_left_wrist_serial.cpp > CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.i
 
 CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/matthew/projects/luke_unitree/programs/g1_left_wrist_serial.cpp -o CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/matthew/projects/inhabit_teleop/programs/g1_left_wrist_serial.cpp -o CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.s
 
 # Object files for target g1_left_wrist_serial
 g1_left_wrist_serial_OBJECTS = \
@@ -92,11 +92,11 @@ g1_left_wrist_serial_EXTERNAL_OBJECTS =
 
 g1_left_wrist_serial: CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o
 g1_left_wrist_serial: CMakeFiles/g1_left_wrist_serial.dir/build.make
-g1_left_wrist_serial: /home/matthew/projects/luke_unitree/.local/unitree_robotics/lib/libunitree_sdk2.a
-g1_left_wrist_serial: /home/matthew/projects/luke_unitree/.local/unitree_robotics/lib/libddsc.so
-g1_left_wrist_serial: /home/matthew/projects/luke_unitree/.local/unitree_robotics/lib/libddscxx.so
+g1_left_wrist_serial: /home/matthew/projects/inhabit_teleop/.local/unitree_robotics/lib/libunitree_sdk2.a
+g1_left_wrist_serial: /home/matthew/projects/inhabit_teleop/.local/unitree_robotics/lib/libddsc.so
+g1_left_wrist_serial: /home/matthew/projects/inhabit_teleop/.local/unitree_robotics/lib/libddscxx.so
 g1_left_wrist_serial: CMakeFiles/g1_left_wrist_serial.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/matthew/projects/luke_unitree/programs/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable g1_left_wrist_serial"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable g1_left_wrist_serial"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/g1_left_wrist_serial.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.
@@ -108,6 +108,6 @@ CMakeFiles/g1_left_wrist_serial.dir/clean:
 .PHONY : CMakeFiles/g1_left_wrist_serial.dir/clean
 
 CMakeFiles/g1_left_wrist_serial.dir/depend:
-	cd /home/matthew/projects/luke_unitree/programs/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/matthew/projects/luke_unitree/programs /home/matthew/projects/luke_unitree/programs /home/matthew/projects/luke_unitree/programs/build /home/matthew/projects/luke_unitree/programs/build /home/matthew/projects/luke_unitree/programs/build/CMakeFiles/g1_left_wrist_serial.dir/DependInfo.cmake "--color=$(COLOR)"
+	cd /home/matthew/projects/inhabit_teleop/programs/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/matthew/projects/inhabit_teleop/programs /home/matthew/projects/inhabit_teleop/programs /home/matthew/projects/inhabit_teleop/programs/build /home/matthew/projects/inhabit_teleop/programs/build /home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles/g1_left_wrist_serial.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/g1_left_wrist_serial.dir/depend
 

@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = -isystem /home/matthew/projects/luke_unitree/.local/unitree_robotics/include -isystem /home/matthew/projects/luke_unitree/.local/unitree_robotics/include/ddscxx
+CXX_INCLUDES = -isystem /home/matthew/projects/inhabit_teleop/.local/unitree_robotics/include -isystem /home/matthew/projects/inhabit_teleop/.local/unitree_robotics/include/ddscxx
 
 CXX_FLAGS = -std=gnu++17
 
