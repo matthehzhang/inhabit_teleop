@@ -1,0 +1,71 @@
+[1/5] cd /home/matthew/projects/luke_unitree/firmware/build/esp-idf/esptool_py && /home/matthew/.espressif/python_env/idf5.2_py3.14_env/bin/python /home/matthew/programs/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/matthew/projects/luke_unitree/firmware/build/partition_table/partition-table.bin /home/matthew/projects/luke_unitree/firmware/build/firmware.bin
+firmware.bin binary size 0xbd0e0 bytes. Smallest app partition is 0x100000 bytes. 0x42f20 bytes (26%) free.
+[2/5] Performing build step for 'bootloader'
+[1/1] cd /home/matthew/projects/luke_unitree/firmware/build/bootloader/esp-idf/esptool_py && /home/matthew/.espressif/python_env/idf5.2_py3.14_env/bin/python /home/matthew/programs/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /home/matthew/projects/luke_unitree/firmware/build/bootloader/bootloader.bin
+Bootloader binary size 0x5240 bytes. 0x2dc0 bytes (36%) free.
+[3/5] No install step for 'bootloader'
+[4/5] Completed 'bootloader'
+[4/5] cd /home/matthew/programs/esp/esp-idf/components/esptool_py && /opt/st/stm32cubeclt_1.21.0/CMake/bin/cmake -D IDF_PATH=/home/matthew/programs/esp/esp-idf -D "SERIAL_TOOL=/home/matthew/.espressif/python_env/idf5.2_py3.14_env/bin/python;;/home/matthew/programs/esp/esp-idf/components/esptool_py/esptool/esptool.py;--chip;esp32s3" -D "SERIAL_TOOL_ARGS=--before=default_reset;--after=hard_reset;write_flash;@flash_args" -D WORKING_DIRECTORY=/home/matthew/projects/luke_unitree/firmware/build -P /home/matthew/programs/esp/esp-idf/components/esptool_py/run_serial_tool.cmake
+esptool.py --chip esp32s3 -p /dev/ttyACM1 -b 460800 --before=default_reset --after=hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB 0x0 bootloader/bootloader.bin 0x10000 firmware.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.11.0
+Serial port /dev/ttyACM1
+Connecting...
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+MAC: d8:3b:da:74:73:9c
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00005fff...
+Flash will be erased from 0x00010000 to 0x000cdfff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+SHA digest in image updated
+Compressed 21056 bytes to 13071...
+Writing at 0x00000000... (100 %)
+Wrote 21056 bytes (13071 compressed) at 0x00000000 in 0.4 seconds (effective 459.0 kbit/s)...
+Hash of data verified.
+Compressed 774368 bytes to 480028...
+Writing at 0x00010000... (3 %)
+Writing at 0x0001d4d9... (6 %)
+Writing at 0x00025f0b... (10 %)
+Writing at 0x0002ad7d... (13 %)
+Writing at 0x000367d5... (16 %)
+Writing at 0x0003ce00... (20 %)
+Writing at 0x00043155... (23 %)
+Writing at 0x000494d6... (26 %)
+Writing at 0x0004f7cf... (30 %)
+Writing at 0x00054f66... (33 %)
+Writing at 0x0005ac35... (36 %)
+Writing at 0x00060a29... (40 %)
+Writing at 0x0006661f... (43 %)
+Writing at 0x0006c3c8... (46 %)
+Writing at 0x00071399... (50 %)
+Writing at 0x000763d7... (53 %)
+Writing at 0x0007b4f4... (56 %)
+Writing at 0x0008072d... (60 %)
+Writing at 0x00085b25... (63 %)
+Writing at 0x0008aeb7... (66 %)
+Writing at 0x00090f90... (70 %)
+Writing at 0x00096786... (73 %)
+Writing at 0x0009c53d... (76 %)
+Writing at 0x000a2b07... (80 %)
+Writing at 0x000a84c3... (83 %)
+Writing at 0x000adc00... (86 %)
+Writing at 0x000b81ab... (90 %)
+Writing at 0x000bf0f9... (93 %)
+Writing at 0x000c5730... (96 %)
+Writing at 0x000caf89... (100 %)
+Wrote 774368 bytes (480028 compressed) at 0x00010000 in 5.7 seconds (effective 1087.9 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 103...
+Writing at 0x00008000... (100 %)
+Wrote 3072 bytes (103 compressed) at 0x00008000 in 0.1 seconds (effective 455.4 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...

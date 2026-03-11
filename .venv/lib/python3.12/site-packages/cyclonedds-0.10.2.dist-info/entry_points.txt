@@ -1,0 +1,4 @@
+[console_scripts]
+cyclonedds = cyclonedds.tools.cli.main:cli
+ddsls = cyclonedds.tools.ddsls:command
+pubsub = cyclonedds.tools.pubsub:command

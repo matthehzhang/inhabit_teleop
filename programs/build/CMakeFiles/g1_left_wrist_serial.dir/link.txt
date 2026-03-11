@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/g1_left_wrist_serial.dir/g1_left_wrist_serial.cpp.o -o g1_left_wrist_serial   -L/home/matthew/projects/luke_unitree/.local/unitree_robotics/lib  -Wl,-rpath,/home/matthew/projects/luke_unitree/.local/unitree_robotics/lib /home/matthew/projects/luke_unitree/.local/unitree_robotics/lib/libunitree_sdk2.a -lddsc -lddscxx 
