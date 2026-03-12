@@ -41,12 +41,12 @@ case "$(uname)" in
     CYGWIN*|MSYS*|MINGW*)
         # transform D:\path\to\venv to /d/path/to/venv on MSYS and MINGW
         # and to /cygdrive/d/path/to/venv on Cygwin
-        VIRTUAL_ENV=$(cygpath /home/matthew/projects/luke_unitree/.venv)
+        VIRTUAL_ENV=$(cygpath /home/matthew/projects/inhabit_teleop/.venv)
         export VIRTUAL_ENV
         ;;
     *)
         # use the path as-is
-        export VIRTUAL_ENV=/home/matthew/projects/luke_unitree/.venv
+        export VIRTUAL_ENV=/home/matthew/projects/inhabit_teleop/.venv
         ;;
 esac
 
@@ -74,4 +74,4 @@ fi
 # Call hash to forget past commands. Without forgetting
 # past commands the $PATH changes we made may not be respected
 hash -r 2> /dev/null
-export CYCLONEDDS_HOME=~/projects/luke_unitree/cyclonedds/install
+export CYCLONEDDS_HOME=~/projects/inhabit_teleop/cyclonedds/install
