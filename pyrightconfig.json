@@ -2,6 +2,6 @@
   "venvPath": ".",
   "venv": ".venv",
   "extraPaths": [
-    "/home/matthew/projects/luke_unitree/unitree_sdk2_python"
+    "/home/matthew/projects/inhabit_teleop/unitree_sdk2_python"
   ]
 }
