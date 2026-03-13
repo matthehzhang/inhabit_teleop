@@ -81,11 +81,13 @@ git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
 pip install -e unitree_sdk2_python/
 ```
 
-### 8. Optional: install Unitree MuJoCo
+### 8. Install Unitree MuJoCo for simulation
 
 ```bash
 git clone https://github.com/unitreerobotics/unitree_mujoco.git
 ```
+
+You need this if you want to use the simulator or virtual-pot simulation workflow. It is not required for the direct serial-to-robot bridge.
 
 ### 9. Verify the setup
 
