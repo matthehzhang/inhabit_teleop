@@ -1,0 +1,370 @@
+G1 Teleoperation Program Notes
+================================
+
+Purpose
+-------
+This directory contains the Python-side bridge and tooling for a Unitree G1 teleoperation setup driven by potentiometer inputs.
+
+The project has evolved from a single-purpose left-wrist bridge into a more reusable system with:
+
+1. A reusable Python bridge library.
+2. Config-driven mapping from input packet slots to G1 joint indices.
+3. A 20-channel variant intended for an MCP3008-based firmware sender.
+4. A standalone GUI for editing joint mappings.
+5. A standalone virtual-pot simulator GUI for testing mappings against simulation or, with explicit arming, a real robot DDS interface.
+
+Important rule for future changes
+---------------------------------
+The newer work was intentionally added as new files rather than rewriting older working paths in place. Preserve that pattern unless the user explicitly asks for consolidation.
+
+
+High-Level Architecture
+-----------------------
+
+Physical hardware path:
+
+potentiometers -> ESP32-S3 firmware -> serial packet -> Python bridge -> DDS low-level command -> G1 sim or robot
+
+Virtual testing path:
+
+GUI virtual sliders -> direct DDS low-level command -> G1 sim or robot
+
+Config authoring path:
+
+GUI config editor -> JSON project file -> exported Python config -> bridge runner
+
+
+Main Python Files
+-----------------
+
+1. g1_bridge_lib.py
+   Original reusable bridge library based on the earlier left-wrist bridge.
+   Packet format is the original one.
+
+2. g1_bridge_lib_20ch.py
+   Newer 20-channel bridge library for the MCP3008 firmware path.
+   This is the main bridge library for the expanded potentiometer setup.
+
+3. g1BRIDGE.py
+   Thin default entrypoint for the original/default left-wrist configuration.
+
+4. run_g1_bridge.py
+   Generic runner for config files that use g1_bridge_lib.py.
+
+5. run_g1_bridge_20ch.py
+   Generic runner for config files that use g1_bridge_lib_20ch.py.
+
+6. g1_left_wrist_bridge_config.py
+   Default example/working left-wrist config.
+
+7. g1_17pot_bridge_config.py
+   Template for a 17-pot setup on top of the 20-channel library.
+   This intentionally fails fast until the user replaces placeholder joint indices.
+
+8. g1_joint_config_ui.py
+   Standalone Tkinter GUI for editing binding configs.
+   Saves JSON project files and exports Python config files.
+
+9. g1_virtual_pot_sim.py
+   Standalone Tkinter GUI that loads a JSON project file and creates virtual potentiometer sliders.
+   Can publish mapped targets to sim DDS, and with explicit arming and confirmation, to the real robot DDS interface.
+
+
+Firmware Files
+--------------
+
+1. firmware/serial_test/main/main.c
+   Original firmware path using the ESP32 internal ADC.
+
+2. firmware/serial_test/main/main_mcp3008.c
+   Newer firmware variant for reading multiple potentiometer channels from MCP3008 chips over SPI.
+
+3. firmware/serial_test/main/CMakeLists.txt
+   Supports selecting the firmware variant:
+   - default is the original internal ADC path
+   - MCP3008 is opt-in
+
+Current default build behavior:
+plain idf.py build should still use the original internal ADC firmware.
+
+
+20-Channel Bridge Design
+------------------------
+
+The 20-channel path is the intended scalable architecture for many potentiometers.
+
+Core idea:
+
+- Firmware sends a packet with 20 float values.
+- Python bridge parses all 20 values.
+- A config file maps only the packet slots you care about to actual G1 joints.
+- Spare packet slots can be ignored.
+
+In practice:
+
+- packet_index = which incoming control channel from firmware or simulator
+- joint_index = which G1 motor command slot is controlled
+
+This makes the bridge generic and keeps joint semantics out of the firmware.
+
+
+JointBinding Model
+------------------
+
+The main per-joint config object is JointBinding.
+
+Important fields currently supported:
+
+- name
+- packet_index
+- joint_index
+- kp
+- kd
+- scale
+- offset
+- min_q
+- max_q
+- average_window_size
+
+Transform order in the bridge:
+
+1. raw incoming value is read from packet.values[packet_index]
+2. mapped_target = raw_value * scale + offset
+3. clamp to min_q / max_q if provided
+4. apply smoothing via moving average if average_window_size > 1
+5. publish as motor_cmd[joint_index].q
+
+This means:
+
+- negative scale inverts direction
+- scale changes movement ratio
+- offset shifts neutral
+- min_q / max_q are hard safety bounds on commanded position
+
+
+Why q, dq, kp, kd, tau are used
+-------------------------------
+
+This follows standard robotics notation and the Unitree low-level API:
+
+- q = joint position target
+- dq = joint velocity target
+- kp = proportional gain
+- kd = derivative gain
+- tau = feedforward torque
+
+
+Current Safety Features
+-----------------------
+
+Bridge-level safety:
+
+- scale and offset allow controlled tuning in config instead of modifying code
+- min_q and max_q provide per-joint hard clamps
+- config validation checks min_q <= max_q
+
+Template safety:
+
+- g1_17pot_bridge_config.py intentionally raises an error until placeholder joint indices are replaced
+
+Firmware safety:
+
+- main_mcp3008.c was revised to fail closed on SPI read failures
+- it skips bad frames instead of converting failed reads into real commands
+- startup calibration retries until successful before entering the control loop
+
+Virtual-pot simulator safety:
+
+- sim publishing and robot publishing are separate buttons
+- only one publish mode can run at a time
+- robot publish requires a NIC/interface entry
+- robot publish requires explicit arming first
+- robot publish shows a warning/confirmation dialog
+- robot arming is blocked if any binding has an invalid joint_index
+
+
+Important Runtime Caveats
+-------------------------
+
+1. The Python bridge code depends on unitree_sdk2_python and cyclonedds.
+   Some static/import checks can fail in stripped environments if cyclonedds is not installed or not visible.
+
+2. The GUI tools do not fully verify DDS runtime availability before launch.
+   They are syntactically valid, but sim/robot publishing still depends on the local Unitree + DDS stack being installed and configured.
+
+3. The virtual-pot simulator launches the MuJoCo Python simulator by assuming this script path:
+
+   /home/matthew/projects/inhabit_teleop/unitree_mujoco/simulate_python/unitree_mujoco.py
+
+4. The virtual-pot simulator reads a JSON project file, not an existing handwritten Python config.
+   The intended workflow is:
+   edit in GUI -> save JSON -> export Python for bridge usage
+
+
+GUI Config Editor: g1_joint_config_ui.py
+----------------------------------------
+
+Purpose:
+
+- edit a set of JointBinding-like rows without hand-editing Python
+- save an editable JSON project file
+- export a Python config file for run_g1_bridge_20ch.py
+- launch the virtual-pot simulator from the current project
+
+What it stores:
+
+- config_name
+- import_module
+- packet_value_count
+- list of binding records
+
+Typical workflow:
+
+1. Start the editor.
+2. Load or create a project.
+3. Edit rows:
+   - packet_index
+   - joint_index
+   - gains
+   - scale
+   - offset
+   - clamps
+4. Save JSON project.
+5. Export Python config.
+6. Optionally open the virtual-pot simulator from the same project.
+
+Current limitation:
+
+- It does not parse existing Python config files back into editable rows.
+
+
+Virtual Pot Simulator: g1_virtual_pot_sim.py
+--------------------------------------------
+
+Purpose:
+
+- provide artificial potentiometers as GUI sliders
+- show live mapped targets after scale/offset/clamp
+- publish directly to DDS without involving serial firmware
+- optionally launch MuJoCo sim
+- optionally publish to real robot with explicit arming
+
+UI functions:
+
+- Launch MuJoCo Simulator
+- Start Publishing To Sim
+- Arm Robot Controls / Disarm Robot Controls
+- Start Publishing To Robot
+- Zero All
+- Center To Offsets
+
+Important implementation note:
+
+The DDS publisher runs on a background thread.
+That thread must not read Tkinter variables directly.
+The code was fixed so the UI thread mirrors slider positions into plain Python floats, and the background publisher uses those mirrored values.
+If someone changes this later, do not reintroduce cross-thread Tkinter reads.
+
+
+Robot Publish Safety Logic
+--------------------------
+
+The virtual-pot simulator now requires these steps before it will publish to a real robot:
+
+1. Every binding must have a valid joint_index in range.
+2. User must click "Arm Robot Controls".
+3. User must provide robot DDS NIC/interface.
+4. User must click "Start Publishing To Robot".
+5. User must confirm the warning dialog.
+
+Disarming is blocked while robot publishing is active; publishing must be stopped first.
+
+
+Simulation Publish Logic
+------------------------
+
+Simulation publish path is separate from robot publish.
+
+Expected defaults:
+
+- DDS domain: 1
+- interface: lo
+
+This matches the usual local sim DDS setup.
+
+
+Known G1 Joint Examples
+-----------------------
+
+Known working examples already present in the code:
+
+- left wrist roll = joint 19
+- left wrist pitch = joint 20
+- left wrist yaw = joint 21
+
+These appear in g1_left_wrist_bridge_config.py and are useful as confirmed reference points.
+
+For broader mapping work, joint indices must be confirmed from:
+
+- existing working code
+- Unitree SDK examples
+- robot state inspection
+- careful one-joint-at-a-time testing
+
+
+How Another Model Should Approach Changes
+-----------------------------------------
+
+If asked to work on this program:
+
+1. Do not assume the user wants the old one-off bridge path changed.
+2. Prefer extending the newer 20-channel/config-driven tooling.
+3. Preserve separation between:
+   - firmware sender
+   - bridge logic
+   - config files
+   - GUI tooling
+4. Avoid editing old files unless the user explicitly asks for consolidation.
+5. Keep robot-facing changes conservative and fail-closed.
+6. Be careful with threading in Tkinter.
+7. If adding new safety features, prefer:
+   - explicit arming
+   - clamps
+   - validation
+   - conservative defaults
+
+
+Good Next Improvements
+----------------------
+
+Reasonable future enhancements:
+
+- deadman switch or timed auto-disarm for robot publishing
+- live color warning when a target is being clamped
+- import existing exported Python config back into the editor
+- per-joint enable/disable toggle
+- named presets
+- richer joint index reference table inside the UI
+- optional max delta per update/rate limiting
+- actual runtime validation that the DDS/sim environment is present before publish
+
+
+Summary
+-------
+
+The current system is no longer just a single bridge script.
+It is now a small tooling stack for:
+
+- firmware-driven teleop over serial
+- config-driven joint mapping
+- simulation-first testing with virtual potentiometers
+- guarded robot publishing
+
+The most important files for ongoing work are:
+
+- g1_bridge_lib_20ch.py
+- run_g1_bridge_20ch.py
+- g1_joint_config_ui.py
+- g1_virtual_pot_sim.py
+- firmware/serial_test/main/main_mcp3008.c
+

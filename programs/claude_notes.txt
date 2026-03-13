@@ -1,0 +1,129 @@
+Claude Code Session Notes — 2026-03-12
+========================================
+
+FILES CREATED (do not modify originals)
+----------------------------------------
+
+firmware/serial_test/main/main_mcp3008.c
+  MCP3008 variant of the ESP32-S3 firmware. Reads 20 analog channels from
+  3 MCP3008 ADCs over SPI, sends 86-byte USB serial packets (header + seq +
+  20 floats + CRC16). Fail-closed design: SPI read failures skip the frame
+  entirely, calibration retries until successful — the control loop never
+  runs with bad center values.
+
+  Pin assignments are placeholders at lines 30-35. Edit before building.
+  Build with: idf.py -DFIRMWARE_VARIANT=mcp3008 build
+
+firmware/serial_test/main/CMakeLists.txt (edited)
+  Added a FIRMWARE_VARIANT cache variable. Default is "internal_adc" (original
+  main.c). Set to "mcp3008" to build the new variant. Only one source file
+  compiles per build since both define app_main().
+
+programs/g1_bridge_lib_20ch.py
+  20-channel Python bridge library. Parses 20-float CRC packets (no legacy
+  fallback). JointBinding has scale/offset/min_q/max_q fields. Sparse configs
+  work — unbound packet indices are parsed but ignored.
+
+programs/run_g1_bridge_20ch.py
+  CLI runner for the 20-channel bridge. Same interface as run_g1_bridge.py.
+  Usage: python run_g1_bridge_20ch.py <config.py> [serial_port] [network_interface]
+
+programs/g1_17pot_bridge_config.py
+  Template config with 17 placeholder bindings. WILL NOT RUN until you:
+    1. Replace every joint_index=-1 with a real Unitree motor index
+    2. Set _PLACEHOLDER_JOINTS_REPLACED = True
+
+programs/g1_unified_studio.py
+  Single-window replacement for g1_joint_config_ui.py + g1_virtual_pot_sim.py.
+  Requires: pip install customtkinter
+  Run: python g1_unified_studio.py [optional_project.g1config.json]
+
+
+ARCHITECTURE OF g1_unified_studio.py
+-------------------------------------
+
+Dependency: customtkinter 5.2.2 (dark-themed tkinter wrapper)
+
+Two tabs in one window:
+
+  Tab 1: "Node Config" — canvas-based joint binding editor
+    - Each JointBindingRecord is a draggable card on a dark zoomable canvas
+    - Mouse wheel zooms toward cursor, middle-click or Ctrl+drag pans
+    - Left-click selects (cyan glow), right-click for context menu (add/dup/delete)
+    - Selected node shows a PropertyPanel sidebar with all 10 fields
+    - Toolbar: New / Open JSON / Save JSON / Export Python + metadata fields
+
+  Tab 2: "Pot Simulator" — virtual potentiometer sliders + DDS publishing
+    - One CTkSlider per binding, -1.5 to +1.5 range
+    - Applies scale/offset/min_q/max_q transform, shows raw + target values
+    - Publishes to Unitree DDS (sim or robot mode) via background thread
+    - Robot mode requires explicit arm + confirmation dialogs
+    - MuJoCo simulator subprocess launch
+
+Key classes:
+  AppState          Shared observable state. Both tabs hold a reference.
+                    Mutations call notify_bindings_changed() to push updates.
+  ProjectIO         File I/O: load/save JSON, export Python config, validation.
+  NodeCanvas        tk.Canvas subclass with zoom/pan/hit-test/drag/render.
+  PropertyPanel     CTkFrame sidebar for editing the selected binding's fields.
+  ConfigTab         Assembles NodeCanvas + PropertyPanel + action bar.
+  PotSimTab         Slider list + DDS publisher thread + MuJoCo launch.
+  Toolbar           Top bar with project buttons + config name/module/pkt fields.
+  UnifiedStudioApp  Root window, wires everything together.
+
+State flow:
+  AppState.bindings is mutated by ConfigTab (add/delete/edit nodes)
+    -> notify_bindings_changed()
+      -> NodeCanvas.redraw()        (re-renders all node cards)
+      -> PotSimTab._rebuild_sliders() (recreates slider rows)
+
+JSON format (backward compatible with old g1_joint_config_ui.py):
+  {
+    "version": 1,
+    "config_name": "...",
+    "import_module": "g1_bridge_lib_20ch",
+    "packet_value_count": 20,
+    "bindings": [ { ...10 fields... }, ... ],
+    "node_positions": { "control_00": [x, y], ... }   // new, ignored by old apps
+  }
+
+Thread safety:
+  - Publisher thread snapshots bindings list at start
+  - Slider values protected by threading.Lock
+  - All UI updates from thread via root.after(0, callback)
+  - Old thread joined before starting new one (prevents stop_event race)
+
+Known gotchas:
+  - tk.Canvas is used (not a CTk widget) because customtkinter has no canvas.
+    All canvas colors are set manually to match the dark theme.
+  - Do NOT name any attribute "_root" on a tkinter/CTk widget subclass.
+    It shadows Widget._root() and crashes on Python 3.14. We use "_app_root".
+  - ChannelFactoryInitialize() from unitree SDK can only be called once per
+    process with a given domain/interface. Changing DDS settings requires restart.
+  - Toolbar trace callbacks are suppressed during reload_from_state() to avoid
+    false dirty flags after load/save.
+
+
+PACKET FORMAT (firmware <-> bridge)
+------------------------------------
+
+Original (main.c / g1_bridge_lib.py):
+  [0xAA 0x55] [uint16 seq] [14x float32 LE] [uint16 CRC16-CCITT]
+  Total: 62 bytes
+
+MCP3008 variant (main_mcp3008.c / g1_bridge_lib_20ch.py):
+  [0xAA 0x55] [uint16 seq] [20x float32 LE] [uint16 CRC16-CCITT]
+  Total: 86 bytes
+
+CRC covers: seq + floats (not header, not CRC itself)
+CRC polynomial: 0x1021, init 0xFFFF
+
+
+ORIGINAL FILES (NOT MODIFIED)
+-------------------------------
+programs/g1_bridge_lib.py
+programs/run_g1_bridge.py
+programs/g1_left_wrist_bridge_config.py
+programs/g1_joint_config_ui.py
+programs/g1_virtual_pot_sim.py
+firmware/serial_test/main/main.c

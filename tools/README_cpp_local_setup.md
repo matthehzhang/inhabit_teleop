@@ -1,6 +1,6 @@
 # Local C++ Unitree SDK Setup
 
-This keeps the native C++ Unitree SDK inside this repo so it is easy to remove later.
+This document explains the intended local C++ SDK layout inside this repo.
 
 Paths:
 
@@ -8,38 +8,26 @@ Paths:
 - local install prefix: `.local/unitree_robotics`
 - program build dir: `programs/build`
 
-## Install the SDK locally
+## Intended setup flow
+
+From the repo root:
 
 ```bash
-cd /home/matthew/projects/luke_unitree
+cd /path/to/inhabit_teleop
 ./tools/setup_unitree_sdk2_local.sh
-```
-
-This installs the prebuilt Unitree SDK library and headers only. It does not build the upstream SDK example programs.
-
-## Build the local C++ program
-
-```bash
-cd /home/matthew/projects/luke_unitree
 ./tools/build_g1_left_wrist_serial.sh
 ```
 
-## Run in sim
+## Current status
 
-```bash
-/home/matthew/projects/luke_unitree/programs/build/g1_left_wrist_serial /dev/ttyACM0
-```
+As of March 13, 2026:
 
-## Run on robot
+- `tools/setup_unitree_sdk2_local.sh` is conceptually correct, but existing build caches created under the old `luke_unitree` path must be removed before reusing the same checkout
+- `tools/build_g1_left_wrist_serial.sh` is blocked by the current `programs/CMakeLists.txt`, which references `programs/g1_left_wrist_serial.cpp`
+- that source file is not present in the current working tree, so the C++ program does not configure from a clean checkout
 
-```bash
-/home/matthew/projects/luke_unitree/programs/build/g1_left_wrist_serial /dev/ttyACM0 enp2s0
-```
+## What to fix before relying on this flow
 
-## Remove everything
-
-```bash
-rm -rf /home/matthew/projects/luke_unitree/third_party/unitree_sdk2
-rm -rf /home/matthew/projects/luke_unitree/.local/unitree_robotics
-rm -rf /home/matthew/projects/luke_unitree/programs/build
-```
+- restore or commit the intended `programs/g1_left_wrist_serial.cpp`
+- or update `programs/CMakeLists.txt` to use the actual C++ source file you want to ship
+- if you previously renamed the repo directory, remove stale CMake cache directories under `third_party/unitree_sdk2/build` and `programs/build`

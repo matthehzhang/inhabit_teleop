@@ -1,3 +1,0 @@
-/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles/g1_left_wrist_serial.dir
-/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles/edit_cache.dir
-/home/matthew/projects/inhabit_teleop/programs/build/CMakeFiles/rebuild_cache.dir

@@ -1,38 +1,202 @@
-# 1. Install Python 3.12 (CycloneDDS doesn't build on 3.14)
-# Ubuntu/Debian:
-sudo apt install python3.12 python3.12-venv
-# Arch:
-yay -S python312
+# inhabit_teleop
 
-# 2. Clone the project
-git clone <your_repo_url> luke_unitree
-cd luke_unitree
+Teleoperation tooling for a Unitree G1 humanoid robot, driven by potentiometer inputs over serial.
 
-# 3. Create venv
+This project includes:
+
+- **Python bridge programs** that read potentiometer data from an ESP32 over serial and send joint commands to the robot via DDS
+- **A GUI studio** for editing joint mappings and testing with virtual potentiometer sliders
+- **ESP32-S3 firmware** for reading potentiometers (internal ADC or MCP3008 over SPI)
+
+## Supported environment
+
+The supported setup path for new users is:
+
+- Ubuntu on a native Linux machine
+- Ubuntu in WSL2 on Windows
+- Ubuntu in a virtual machine on Windows
+
+Native Windows is not currently supported. The repo assumes Linux-style device paths such as `/dev/ttyACM0` and Linux-oriented build tools.
+
+If you are on Windows, use the Windows-specific guide in [README_windows.md](/home/matthew/projects/inhabit_teleop/README_windows.md).
+
+## Quick start
+
+### 1. Install system dependencies
+
+**Ubuntu / Debian:**
+
+```bash
+sudo apt update
+sudo apt install git cmake build-essential python3.12 python3.12-venv python3.12-tk
+```
+
+**Arch Linux:**
+
+```bash
+sudo pacman -S git cmake base-devel python tk
+```
+
+> Python 3.12 is recommended. The Unitree SDK and MuJoCo may not have wheels for newer Python versions yet.
+
+### 2. Clone the repo
+
+```bash
+git clone https://github.com/matthehzhang/inhabit_teleop.git
+cd inhabit_teleop
+```
+
+### 3. Create a virtual environment
+
+```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
+pip install --upgrade pip
+```
 
-# 4. Build CycloneDDS
+### 4. Install Python packages
+
+```bash
+pip install numpy pyserial customtkinter mujoco pygame opencv-python PyOpenGL
+```
+
+### 5. Build and install CycloneDDS
+
+The Unitree Python SDK depends on CycloneDDS. You need to build it from source:
+
+```bash
 git clone https://github.com/eclipse-cyclonedds/cyclonedds -b releases/0.10.x
-cd cyclonedds && mkdir build install && cd build
+cd cyclonedds
+mkdir build install
+cd build
 cmake .. -DCMAKE_INSTALL_PREFIX=../install
-cmake --build . --target install
+cmake --build . --target install -j$(nproc)
 cd ../..
+```
 
-# 5. Install Unitree Python SDK
+Set the environment variable so the Python bindings can find it:
+
+```bash
+export CYCLONEDDS_HOME="$(pwd)/cyclonedds/install"
+```
+
+To make this automatic every time you activate the venv:
+
+```bash
+echo 'export CYCLONEDDS_HOME="'"$(pwd)"'/cyclonedds/install"' >> .venv/bin/activate
+```
+
+### 6. Install the Unitree Python SDK
+
+```bash
 git clone https://github.com/unitreerobotics/unitree_sdk2_python.git
-cd unitree_sdk2_python
-export CYCLONEDDS_HOME=$(pwd)/../cyclonedds/install
-pip install -e .
-cd ..
+pip install -e unitree_sdk2_python/
+```
 
-# 6. Install MuJoCo and the sim
-pip install mujoco pygame pyserial numpy
+### 7. (Optional) Clone Unitree MuJoCo for simulation
+
+```bash
 git clone https://github.com/unitreerobotics/unitree_mujoco.git
+```
 
-# 7. Add CYCLONEDDS_HOME to venv activate script
-echo "export CYCLONEDDS_HOME=$(pwd)/cyclonedds/install" >> .venv/bin/activate
+### 8. Verify everything works
 
-# 8. Verify
-python -c "import unitree_sdk2py; print('SDK OK')"
-python -c "import mujoco; print('MuJoCo OK')"
+```bash
+source .venv/bin/activate
+python -c "import unitree_sdk2py; print('unitree_sdk2py OK')"
+python -c "import serial; print('pyserial OK')"
+python -c "import customtkinter; print('customtkinter OK')"
+python -c "import mujoco; print('mujoco OK')"
+```
+
+If all four print "OK", you're ready.
+
+## Running the programs
+
+Always activate the venv first:
+
+```bash
+source .venv/bin/activate
+```
+
+### Unified Studio (GUI editor + virtual pot simulator)
+
+```bash
+python programs/g1_unified_studio.py
+```
+
+This is the main GUI tool. It has two tabs:
+
+- **Node Config** — drag-and-drop editor for joint bindings (save/load JSON projects, export Python configs)
+- **Pot Simulator** — virtual potentiometer sliders that can publish to the MuJoCo sim or (with explicit arming) the real robot
+
+### Joint Config Editor (standalone)
+
+```bash
+python programs/g1_joint_config_ui.py
+```
+
+### Virtual Pot Simulator (standalone)
+
+```bash
+python programs/g1_virtual_pot_sim.py programs/uitest1.g1config.json
+```
+
+### Bridge: serial potentiometers to robot
+
+Connect your ESP32 via USB, then:
+
+```bash
+python programs/run_g1_bridge.py programs/g1_left_wrist_bridge_config.py /dev/ttyACM0 <network_interface>
+```
+
+Replace `<network_interface>` with the NIC connected to the robot (e.g. `enp2s0`). Find yours with `ip link`.
+
+For the 20-channel MCP3008 variant:
+
+```bash
+python programs/run_g1_bridge_20ch.py programs/g1_17pot_bridge_config.py /dev/ttyACM0 <network_interface>
+```
+
+> **Note:** `g1_17pot_bridge_config.py` is a template — it will refuse to run until you replace the placeholder joint indices and set `_PLACEHOLDER_JOINTS_REPLACED = True`.
+
+### Legacy bridge (hardcoded left-wrist config)
+
+```bash
+python programs/g1BRIDGE.py
+```
+
+## ESP32-S3 firmware
+
+The firmware lives in `firmware/serial_test/`. It requires the [ESP-IDF toolchain](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/get-started/).
+
+**Original (internal ADC):**
+
+```bash
+cd firmware/serial_test
+idf.py build
+idf.py flash
+```
+
+**MCP3008 variant (3x MCP3008 over SPI, 20 channels):**
+
+```bash
+cd firmware/serial_test
+idf.py -DFIRMWARE_VARIANT=mcp3008 build
+idf.py flash
+```
+
+> Edit the SPI pin assignments in `main/main_mcp3008.c` before building.
+
+## Project structure
+
+```
+programs/               Python bridge programs and GUI tools
+firmware/serial_test/   ESP32-S3 firmware source
+tools/                  Helper scripts
+third_party/            Local third-party source checkouts
+cyclonedds/             (gitignored) CycloneDDS build
+unitree_sdk2_python/    (gitignored) Python SDK checkout
+unitree_mujoco/         (gitignored) MuJoCo sim checkout
+.venv/                  (gitignored) Python virtual environment
+```
