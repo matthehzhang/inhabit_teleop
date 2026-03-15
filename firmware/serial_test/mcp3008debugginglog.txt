@@ -1,0 +1,170 @@
+MCP3008 Debugging Log
+Date: 2026-03-14
+Project: /home/matthew/projects/inhabit_teleop/firmware/serial_test
+
+Goal
+- Build and flash the MCP3008 firmware variant onto an ESP32-S3 and verify that potentiometer motion is reflected in the packet stream.
+
+Repo facts
+- Firmware variant selection is in main/CMakeLists.txt.
+- Correct variant string is "mcp3008".
+- MCP3008 firmware source is main/main_mcp3008.c.
+- Packet debug reader is programs/scratch/read_mcp3008_packets.py.
+
+Important early mistake
+- A build was done with FIRMWARE_VARIANT=mpc3008 (typo).
+- Because of the typo, CMake fell back to main.c instead of main_mcp3008.c.
+- This caused packet-shape confusion and CRC/desync issues in the 20-channel reader.
+- Later confirmed/fixed: build/CMakeCache.txt contained FIRMWARE_VARIANT:STRING=mcp3008.
+
+Flash / USB findings
+- Flashing eventually succeeded on /dev/ttyACM1.
+- The ESP32-S3 appeared as:
+  - 303a:1001 "USB JTAG/serial debug unit"
+  - 303a:4001 "Espressif Device"
+- This confirmed the app was booting and re-enumerating over USB CDC.
+- idf.py monitor showed BEACON output; garbage after that was expected because monitor tries to decode binary packets as text.
+
+Packet transport findings
+- Once the correct mcp3008 firmware was flashed, the packet reader showed:
+  - valid increasing
+  - crc_fail=0
+  - desync=0
+- This proved USB CDC transport and packet framing were healthy.
+
+Python debug script changes
+- programs/scratch/read_mcp3008_packets.py was patched to support an "all" mode:
+  python .../read_mcp3008_packets.py /dev/ttyACM1 115200 0.02 all
+- In "all" mode it prints all 20 decoded float values every packet.
+
+Main symptom in normal firmware
+- Packets were valid, but all 20 values stayed at 0.000 even while moving potentiometers.
+- This suggested the firmware loop was alive, but ADC readings were either flat or being normalized to zero.
+
+Claude debugging work (summary)
+- Claude experimented with several temporary firmware modifications inside main/main_mcp3008.c:
+  - changed SPI clock from 1 MHz to 100 kHz
+  - added raw SPI diagnostic packet modes
+  - added a loopback-style probe
+  - switched to a bit-banged SPI test mode
+  - switched to a GPIO pin scanner mode
+- These changes were exploratory and should not be treated as final firmware behavior.
+
+Important Claude-era observations
+- At one point, with a raw SPI diagnostic build, output looked like:
+  - 0:1023 / 255 / 255 / 255 patterns
+  - 0 / 1 / 128 / 0 patterns
+  - other channels near fixed values
+- Disconnecting DIN/DOUT on the third MCP3008 changed some observed bytes.
+- Claude suspected loopback/pass-through behavior and possible crosstalk or invalid-command artifacts.
+- This was never conclusively resolved.
+
+Critical later discovery
+- Claude eventually left the firmware in a GPIO scanner debug mode, not actual MCP3008-reading mode.
+- I later found main/main_mcp3008.c contained:
+  - DEBUG_RAW=1
+  - a GPIO scanner in app_main() reading GPIO 0..19 and sending those levels as floats
+- This meant the board could not read the MCP3008 at all while that firmware was flashed.
+
+GPIO scanner findings
+- Baseline scanner output showed some pins high by default, including GPIO0.
+- User was asked to touch 3.3V to the XIAO D9 pad.
+- Result: index 9 consistently changed from 0.000 to 1.000 when D9 was touched.
+- Interpretation: XIAO D9 is very likely GPIO9.
+- There was also some noise/flicker on index 19 and earlier some confusion around index 8, but index 9 was the cleanest signal.
+
+Interpretation of GPIO scan
+- The user/Claude had uncertainty about XIAO pad mapping.
+- The D9 test strongly suggests D9 -> GPIO9.
+- This supports the original assumption that MISO might be GPIO9.
+- It does not prove that SCLK and MOSI are correctly mapped.
+
+My restoration work after Claude hit limits
+- I inspected main/main_mcp3008.c and found it still in GPIO scanner mode.
+- I restored it to actual MCP3008-reading behavior:
+  - DEBUG_RAW set back to 0 first
+  - restored SPI usage in app_main()
+  - set pin assumptions back to:
+    - PIN_SPI_MISO = GPIO_NUM_9
+    - PIN_SPI_MOSI = GPIO_NUM_10
+    - PIN_SPI_SCLK = GPIO_NUM_8
+  - left SPI clock at 100 kHz for stability
+- This build succeeded.
+
+Latest firmware change before stopping
+- User requested a firmware version that outputs direct voltage instead of normalized values.
+- I changed main/main_mcp3008.c again to:
+  - DEBUG_RAW = 1
+  - read all MCP3008 channels normally over SPI
+  - send each channel as voltage in volts:
+    volts = raw / 1023.0 * 3.3
+- This bypasses calibration/centering logic and should show approximately 0.000 to 3.300 for each active channel.
+- This build also succeeded.
+
+Current expected firmware state
+- File: main/main_mcp3008.c
+- Current mode: voltage diagnostic mode, not normal teleop mode
+- Current pin assumptions:
+  - MISO = GPIO9
+  - MOSI = GPIO10
+  - SCLK = GPIO8
+  - CS0 = GPIO1
+  - CS1 = GPIO2
+  - CS2 = GPIO3
+- Current SPI clock:
+  - 100 kHz
+
+What the user still observed
+- Even after multiple diagnostic efforts, the user still reported no useful analog movement.
+- This means no conclusive proof yet that the MCP3008 analog inputs are being read correctly.
+
+Most likely causes at end of day
+1. Shared SPI bus/pin mapping issue on the ESP32/XIAO side.
+2. Breadboard/contact/wiring issue affecting the shared bus.
+3. Incorrect assumptions about SCLK/MOSI/CS pad mapping.
+4. One bad MCP3008 chip.
+5. All three MCP3008 chips bad (possible, but less likely than a shared wiring or mapping issue).
+
+Why "all chips are bad" is not the leading theory
+- All three chips share the same SPI bus.
+- A shared miswire or bad board-pin mapping explains "everything looks dead" better than three chips independently failing the same way.
+
+Recommended next-step plan for tomorrow
+- Build a minimal one-chip breadboard test.
+- Use only one MCP3008 and one potentiometer on CH0.
+- Disconnect the other two chips completely.
+- Verify these MCP3008 pins explicitly:
+  - pin 16 VDD -> 3.3V
+  - pin 15 VREF -> 3.3V
+  - pin 14 AGND -> GND
+  - pin 9 DGND -> GND
+- Verify common ground with the ESP32-S3 board.
+- Use the current voltage-diagnostic firmware first.
+- Watch whether CH0 voltage changes across roughly 0.0V to 3.3V when the pot is turned.
+
+If the one-chip test still fails
+- Re-verify XIAO pad mapping for:
+  - D8 / SCLK
+  - D9 / MISO
+  - D10 / MOSI
+- Since D9 appeared to be GPIO9, the next pins to prove are SCLK and MOSI.
+- If needed, create similar GPIO touch tests for D8 and D10.
+
+Useful commands
+- Flash current voltage diagnostic build:
+  cd /home/matthew/projects/inhabit_teleop/firmware/serial_test
+  source /home/matthew/programs/esp/esp-idf/export.sh
+  idf.py -p /dev/ttyACM1 flash
+
+- Read packet values in all mode:
+  python /home/matthew/projects/inhabit_teleop/programs/scratch/read_mcp3008_packets.py /dev/ttyACM1 115200 0.001 all
+
+Expected meaning of current diagnostic packets
+- vals[0..19] are channel voltages in volts, not centered control outputs.
+- If the firmware is reading analog values correctly, turning a pot should change the corresponding channel value directly.
+
+Bottom line at stop point
+- USB CDC transport works.
+- Packet framing works.
+- The major unresolved issue is still on the MCP3008 read path.
+- Tomorrow's highest-value test is a minimal single-chip, single-pot setup using the current voltage-output firmware.

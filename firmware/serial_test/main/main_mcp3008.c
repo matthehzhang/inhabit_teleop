@@ -26,17 +26,22 @@
 #include "tinyusb.h"
 #include "tusb_cdc_acm.h"
 
-// ===== SPI PIN ASSIGNMENTS (edit these for your board) =====
-#define PIN_SPI_MISO    GPIO_NUM_9
-#define PIN_SPI_MOSI    GPIO_NUM_10
-#define PIN_SPI_SCLK    GPIO_NUM_8
+// Temporary diagnostic mode: send per-channel voltages instead of centered output.
+#define DEBUG_RAW       1
+
+// ===== SPI PIN ASSIGNMENTS (XIAO ESP32-S3) =====
+// XIAO ESP32-S3 pin labels do NOT match GPIO numbers:
+// D8=GPIO7 (SCK), D9=GPIO8 (MISO), D10=GPIO9 (MOSI)
+#define PIN_SPI_MISO    GPIO_NUM_8
+#define PIN_SPI_MOSI    GPIO_NUM_9
+#define PIN_SPI_SCLK    GPIO_NUM_7
 #define PIN_CS_CHIP0    GPIO_NUM_1
 #define PIN_CS_CHIP1    GPIO_NUM_2
 #define PIN_CS_CHIP2    GPIO_NUM_3
 
 // ===== CONFIGURATION =====
 #define SPI_HOST_ID     SPI2_HOST
-#define SPI_CLOCK_HZ    1000000     // 1 MHz — MCP3008 max is 3.6 MHz @ 5 V
+#define SPI_CLOCK_HZ    100000      // 100 kHz — slow for breadboard debugging
 
 #define NUM_CHIPS       3
 #define CHANNELS_CHIP0  8
@@ -45,6 +50,7 @@
 #define TOTAL_CHANNELS  (CHANNELS_CHIP0 + CHANNELS_CHIP1 + CHANNELS_CHIP2)
 
 #define ADC_MAX         1023
+#define ADC_VREF_VOLTS  3.3f
 #define DEADZONE        5
 #define SMOOTHING       0.05f
 #define OUTPUT_MAX      1.5f
@@ -101,6 +107,32 @@ static int mcp3008_read(spi_device_handle_t dev, int channel)
         return -1;
     }
 
+    return ((rx[1] & 0x03) << 8) | rx[2];
+}
+
+// Debug version: returns parsed value AND full rx bytes
+static int mcp3008_read_debug(spi_device_handle_t dev, int channel,
+                               uint8_t *rx_out)
+{
+    uint8_t tx[3] = { 0x01, (uint8_t)(0x80 | (channel << 4)), 0x00 };
+    uint8_t rx[3] = { 0 };
+
+    spi_transaction_t t = {
+        .length = 24,
+        .tx_buffer = tx,
+        .rx_buffer = rx,
+    };
+
+    esp_err_t err = spi_device_transmit(dev, &t);
+    if (err != ESP_OK) {
+        return -1;
+    }
+
+    if (rx_out) {
+        rx_out[0] = rx[0];
+        rx_out[1] = rx[1];
+        rx_out[2] = rx[2];
+    }
     return ((rx[1] & 0x03) << 8) | rx[2];
 }
 
@@ -190,7 +222,6 @@ static void cdc_write_bytes(const uint8_t *data, size_t len)
 static void send_startup_beacon(void)
 {
     static const uint8_t beacon[] = {
-        HEADER_0, HEADER_1,
         'B', 'E', 'A', 'C', 'O', 'N',
         0x0D, 0x0A
     };
@@ -299,8 +330,35 @@ void app_main(void)
     init_usb_cdc();
     send_startup_beacon();
 
+#if DEBUG_RAW
     init_spi();
+    send_startup_beacon();
+    esp_log_level_set("*", ESP_LOG_NONE);
 
+    const TickType_t period = pdMS_TO_TICKS(1000 / SEND_RATE_HZ);
+    TickType_t next_wake = xTaskGetTickCount();
+
+    while (1) {
+        float vals[FLOAT_COUNT] = { 0.0f };
+        int raw[TOTAL_CHANNELS];
+
+        if (read_all_channels(raw)) {
+            for (int i = 0; i < TOTAL_CHANNELS; i++) {
+                vals[i] = ((float)raw[i] / (float)ADC_MAX) * ADC_VREF_VOLTS;
+            }
+        }
+
+        packet_t pkt = { 0 };
+        build_packet(&pkt, vals);
+
+        if (cdc_connected) {
+            cdc_write_bytes((const uint8_t *)&pkt, sizeof(pkt));
+        }
+
+        vTaskDelayUntil(&next_wake, period);
+    }
+#else
+    init_spi();
     // Fail-closed: block here until calibration succeeds. Never enter the
     // control loop with bogus centers — that would command saturated outputs.
     while (!calibrate()) {
@@ -353,4 +411,5 @@ void app_main(void)
 
         vTaskDelayUntil(&next_wake, period);
     }
+#endif
 }
