@@ -31,17 +31,21 @@ from unitree_sdk2py.core.channel import (  # noqa: E402
 )
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowCmd_ as HG_LowCmd  # noqa: E402
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowState_ as HG_LowState  # noqa: E402
+from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandCmd_ as HG_HandCmd  # noqa: E402
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import MotorCmd_ as HG_MotorCmd  # noqa: E402
+from unitree_sdk2py.idl.default import unitree_hg_msg_dds__HandCmd_  # noqa: E402
 from unitree_sdk2py.utils.crc import CRC  # noqa: E402
 
 
 CMD_TOPIC = "rt/lowcmd"
 STATE_TOPIC = "rt/lowstate"
+HAND_LEFT_CMD_TOPIC = "rt/dex3/left/cmd"
+HAND_RIGHT_CMD_TOPIC = "rt/dex3/right/cmd"
 DEFAULT_SERIAL_PORT = "/dev/ttyACM0"
 DEFAULT_BAUD_RATE = 115200
 HEADER = b"\xAA\x55"
-FLOAT_COUNT = 20
-PAYLOAD_FORMAT = "<H20f"
+FLOAT_COUNT = 24
+PAYLOAD_FORMAT = "<H24f"
 PAYLOAD_BYTES = struct.calcsize(PAYLOAD_FORMAT)
 PACKET_BYTES = len(HEADER) + PAYLOAD_BYTES + 2  # header + payload + CRC16
 COMMAND_DT_SEC = 0.001
@@ -50,6 +54,7 @@ SERIAL_SETTLE_TIME_SEC = 1.0
 POS_STOP_F = 2.146e9
 VEL_STOP_F = 16000.0
 NUM_MOTORS = 35
+NUM_HAND_MOTORS = 7
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,7 @@ class JointBinding:
     min_q: Optional[float] = None
     max_q: Optional[float] = None
     average_window_size: int = 1
+    hand: Optional[str] = None  # "left" or "right" for dex3 hand joints, None for body
 
 
 @dataclass(frozen=True)
@@ -95,6 +101,8 @@ def crc16_ccitt(data: bytes) -> int:
 class SerialPort:
     def __init__(self, path: str, baud_rate: int):
         self._serial = serial.Serial(path, baudrate=baud_rate, timeout=0, write_timeout=0)
+        self._serial.dtr = True
+        self._serial.rts = True
         time.sleep(SERIAL_SETTLE_TIME_SEC)
         self._serial.reset_input_buffer()
 
@@ -223,11 +231,20 @@ class G1SerialBridge:
                     f"{binding.name}: packet_index {binding.packet_index} is out of range "
                     f"for packet_value_count={config.packet_value_count}"
                 )
-            if binding.joint_index < 0 or binding.joint_index >= NUM_MOTORS:
-                raise ValueError(
-                    f"{binding.name}: joint_index {binding.joint_index} is out of range "
-                    f"for NUM_MOTORS={NUM_MOTORS}"
-                )
+            if binding.hand is not None:
+                if binding.hand not in ("left", "right"):
+                    raise ValueError(f"{binding.name}: hand must be 'left', 'right', or None")
+                if binding.joint_index < 0 or binding.joint_index >= NUM_HAND_MOTORS:
+                    raise ValueError(
+                        f"{binding.name}: joint_index {binding.joint_index} is out of range "
+                        f"for NUM_HAND_MOTORS={NUM_HAND_MOTORS}"
+                    )
+            else:
+                if binding.joint_index < 0 or binding.joint_index >= NUM_MOTORS:
+                    raise ValueError(
+                        f"{binding.name}: joint_index {binding.joint_index} is out of range "
+                        f"for NUM_MOTORS={NUM_MOTORS}"
+                    )
             if binding.average_window_size < 1:
                 raise ValueError(f"{binding.name}: average_window_size must be >= 1")
             if (
@@ -262,10 +279,21 @@ class G1SerialBridge:
         self._latest_state: Optional[HG_LowState] = None
         self._have_state = False
         self._reported_packet = False
+
+        # dex3 hand support
+        self._has_left_hand = any(b.hand == "left" for b in config.joint_bindings)
+        self._has_right_hand = any(b.hand == "right" for b in config.joint_bindings)
+        self._left_hand_cmd = unitree_hg_msg_dds__HandCmd_() if self._has_left_hand else None
+        self._right_hand_cmd = unitree_hg_msg_dds__HandCmd_() if self._has_right_hand else None
+        self._left_hand_publisher: Optional[ChannelPublisher] = None
+        self._right_hand_publisher: Optional[ChannelPublisher] = None
         self._input_history = [
             deque(maxlen=binding.average_window_size) for binding in config.joint_bindings
         ]
         self._last_targets = [0.0 for _ in config.joint_bindings]
+        self._homed = False
+        self._home_voltages: list[float] = [0.0] * config.packet_value_count
+        self._home_positions: list[float] = [0.0] * NUM_MOTORS
         self._init_low_cmd()
 
     def init(self) -> None:
@@ -274,6 +302,15 @@ class G1SerialBridge:
 
         self._lowstate_subscriber = ChannelSubscriber(STATE_TOPIC, HG_LowState)
         self._lowstate_subscriber.Init()
+
+        if self._has_left_hand:
+            self._left_hand_publisher = ChannelPublisher(HAND_LEFT_CMD_TOPIC, HG_HandCmd)
+            self._left_hand_publisher.Init()
+            print("Left hand publisher initialized.")
+        if self._has_right_hand:
+            self._right_hand_publisher = ChannelPublisher(HAND_RIGHT_CMD_TOPIC, HG_HandCmd)
+            self._right_hand_publisher.Init()
+            print("Right hand publisher initialized.")
 
     def wait_for_first_state(self) -> None:
         print("Waiting for robot state...")
@@ -293,10 +330,45 @@ class G1SerialBridge:
         self._low_cmd.mode_machine = message.mode_machine
         self._have_state = True
 
+    def capture_home(self, packet: Packet) -> None:
+        """Record current pot voltages and robot joint positions as home reference.
+
+        Call this once with the rig and robot both in the same starting pose.
+        After this, apply_packet sends relative movements from home.
+        """
+        self._home_voltages = list(packet.values)
+        if self._latest_state is not None:
+            for binding in self._config.joint_bindings:
+                if binding.hand is None:
+                    self._home_positions[binding.joint_index] = (
+                        self._latest_state.motor_state[binding.joint_index].q
+                    )
+        # hand joints don't have state in LowState_, home position stays 0
+        self._homed = True
+        print("Home position captured.")
+        for binding in self._config.joint_bindings:
+            v = self._home_voltages[binding.packet_index]
+            if binding.hand is None:
+                q = self._home_positions[binding.joint_index]
+                print(f"  {binding.name}: voltage={v:.3f}V, joint_q={q:.3f}rad")
+            else:
+                print(f"  {binding.name}: voltage={v:.3f}V ({binding.hand} hand motor {binding.joint_index})")
+
     def apply_packet(self, packet: Packet) -> None:
+        if not self._homed:
+            self.capture_home(packet)
+            return
+
         for axis, binding in enumerate(self._config.joint_bindings):
-            raw_target = packet.values[binding.packet_index]
-            mapped_target = raw_target * binding.scale + binding.offset
+            voltage = packet.values[binding.packet_index]
+            delta = voltage - self._home_voltages[binding.packet_index]
+
+            if binding.hand is None:
+                home_q = self._home_positions[binding.joint_index]
+            else:
+                home_q = 0.0  # hand joints home from 0
+
+            mapped_target = home_q + delta * binding.scale + binding.offset
             if binding.min_q is not None:
                 mapped_target = max(binding.min_q, mapped_target)
             if binding.max_q is not None:
@@ -310,7 +382,13 @@ class G1SerialBridge:
             filtered_target = sum(history) / len(history)
             self._last_targets[axis] = mapped_target
 
-            motor_cmd = self._low_cmd.motor_cmd[binding.joint_index]
+            if binding.hand is None:
+                motor_cmd = self._low_cmd.motor_cmd[binding.joint_index]
+            elif binding.hand == "left":
+                motor_cmd = self._left_hand_cmd.motor_cmd[binding.joint_index]
+            else:
+                motor_cmd = self._right_hand_cmd.motor_cmd[binding.joint_index]
+
             motor_cmd.mode = 1
             motor_cmd.q = filtered_target
             motor_cmd.dq = 0.0
@@ -334,6 +412,11 @@ class G1SerialBridge:
 
         self._low_cmd.crc = self._crc.Crc(self._low_cmd)
         self._lowcmd_publisher.Write(self._low_cmd)
+
+        if self._left_hand_publisher is not None:
+            self._left_hand_publisher.Write(self._left_hand_cmd)
+        if self._right_hand_publisher is not None:
+            self._right_hand_publisher.Write(self._right_hand_cmd)
 
     def _init_low_cmd(self) -> None:
         self._low_cmd.mode_pr = 0

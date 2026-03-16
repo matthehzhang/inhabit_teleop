@@ -12,8 +12,8 @@ except ImportError as exc:
 
 
 HEADER = b"\xAA\x55"
-FLOAT_COUNT = 20
-PAYLOAD_FORMAT = "<H20f"
+FLOAT_COUNT = 24
+PAYLOAD_FORMAT = "<H24f"
 PAYLOAD_BYTES = struct.calcsize(PAYLOAD_FORMAT)
 PACKET_BYTES = len(HEADER) + PAYLOAD_BYTES + 2
 EXPECTED_MIN = -1.6
@@ -33,12 +33,17 @@ def crc16_ccitt(data: bytes) -> int:
 
 
 def format_changed(values: tuple[float, ...], threshold: float) -> str:
-    changed = [f"{idx}:{value:.3f}" for idx, value in enumerate(values) if abs(value) >= threshold]
-    return " ".join(changed) if changed else "-"
+    parts = []
+    for idx, value in enumerate(values):
+        if abs(value) >= threshold:
+            parts.append(f"{value:6.3f}")
+        else:
+            parts.append("     -")
+    return " ".join(parts)
 
 
 def format_all(values: tuple[float, ...]) -> str:
-    return " ".join(f"{idx}:{value:.3f}" for idx, value in enumerate(values))
+    return " ".join(f"{value:6.3f}" for value in values)
 
 
 def main() -> int:
@@ -48,6 +53,8 @@ def main() -> int:
     show_all = (len(sys.argv) > 4 and sys.argv[4].lower() == "all")
 
     ser = serial.Serial(port, baudrate=baud, timeout=0)
+    ser.dtr = True
+    ser.rts = True
     time.sleep(1.0)
     ser.reset_input_buffer()
 
@@ -59,9 +66,10 @@ def main() -> int:
     last_status = time.monotonic()
 
     print(f"Reading {port} at {baud} baud, threshold={threshold:.3f}")
-    print("Indices 0-7=chip0, 8-15=chip1, 16-19=chip2")
-    if show_all:
-        print("Printing all 20 values per packet")
+    print("0-7=chip0, 8-15=chip1, 16-23=chip2")
+    header = "  seq  " + " ".join(f"  ch{i:02d}" for i in range(FLOAT_COUNT))
+    print(header)
+    print("-" * len(header))
 
     try:
         while True:

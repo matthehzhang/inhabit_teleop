@@ -135,7 +135,7 @@ python programs/run_g1_bridge.py programs/g1_left_wrist_bridge_config.py /dev/tt
 For the 20-channel variant:
 
 ```bash
-python programs/run_g1_bridge_20ch.py programs/g1_17pot_bridge_config.py /dev/ttyACM0 <network_interface>
+python programs/run_g1_bridge_20ch.py programs/g1_POTCONFIG.py /dev/ttyACM0 <network_interface>
 ```
 
 Replace `<network_interface>` with the Ubuntu network interface name, such as `eth0`, `enp2s0`, or similar.

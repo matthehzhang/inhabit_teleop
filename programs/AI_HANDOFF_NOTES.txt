@@ -57,9 +57,9 @@ Main Python Files
 6. g1_left_wrist_bridge_config.py
    Default example/working left-wrist config.
 
-7. g1_17pot_bridge_config.py
-   Template for a 17-pot setup on top of the 20-channel library.
-   This intentionally fails fast until the user replaces placeholder joint indices.
+7. g1_POTCONFIG.py
+   Pot-to-joint mapping config for the 24ch MCP3008 teleop rig.
+   Maps pot channels to G1 joints with home-offset calibration.
 
 8. g1_joint_config_ui.py
    Standalone Tkinter GUI for editing binding configs.

@@ -5,10 +5,10 @@
  *
  * Chip 0 ch 0-7  => packet floats[0..7]
  * Chip 1 ch 0-7  => packet floats[8..15]
- * Chip 2 ch 0-3  => packet floats[16..19]
+ * Chip 2 ch 0-7  => packet floats[16..23]
  *
- * Packet: [0xAA 0x55] [uint16 seq] [20x float32 LE] [uint16 CRC16-CCITT]
- * Total: 86 bytes
+ * Packet: [0xAA 0x55] [uint16 seq] [24x float32 LE] [uint16 CRC16-CCITT]
+ * Total: 102 bytes
  */
 
 #include <stdio.h>
@@ -46,7 +46,7 @@
 #define NUM_CHIPS       3
 #define CHANNELS_CHIP0  8
 #define CHANNELS_CHIP1  8
-#define CHANNELS_CHIP2  4
+#define CHANNELS_CHIP2  8
 #define TOTAL_CHANNELS  (CHANNELS_CHIP0 + CHANNELS_CHIP1 + CHANNELS_CHIP2)
 
 #define ADC_MAX         1023
@@ -59,7 +59,7 @@
 
 #define HEADER_0        0xAA
 #define HEADER_1        0x55
-#define FLOAT_COUNT     20
+#define FLOAT_COUNT     24
 #define USB_WRITE_TIMEOUT_MS    2
 #define STARTUP_BEACON_REPEATS  20
 #define STARTUP_BEACON_DELAY_MS 50
@@ -259,7 +259,7 @@ static void init_spi(void)
         ESP_ERROR_CHECK(spi_bus_add_device(SPI_HOST_ID, &dev_cfg, &spi_dev[i]));
     }
 
-    ESP_LOGI(TAG, "SPI bus initialized — 3 MCP3008 devices");
+    ESP_LOGI(TAG, "SPI bus initialized — %d MCP3008 device(s)", NUM_CHIPS);
 }
 
 // ===== CHANNEL READING =====

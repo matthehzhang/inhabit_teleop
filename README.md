@@ -154,13 +154,11 @@ python programs/run_g1_bridge.py programs/g1_left_wrist_bridge_config.py /dev/tt
 
 Replace `<network_interface>` with the NIC connected to the robot (e.g. `enp2s0`). Find yours with `ip link`.
 
-For the 20-channel MCP3008 variant:
+For the 24-channel MCP3008 variant:
 
 ```bash
-python programs/run_g1_bridge_20ch.py programs/g1_17pot_bridge_config.py /dev/ttyACM0 <network_interface>
+python programs/run_g1_bridge_20ch.py programs/g1_POTCONFIG.py /dev/ttyACM0 <network_interface>
 ```
-
-> **Note:** `g1_17pot_bridge_config.py` is a template — it will refuse to run until you replace the placeholder joint indices and set `_PLACEHOLDER_JOINTS_REPLACED = True`.
 
 ### Legacy bridge (hardcoded left-wrist config)
 

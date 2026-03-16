@@ -28,10 +28,9 @@ programs/run_g1_bridge_20ch.py
   CLI runner for the 20-channel bridge. Same interface as run_g1_bridge.py.
   Usage: python run_g1_bridge_20ch.py <config.py> [serial_port] [network_interface]
 
-programs/g1_17pot_bridge_config.py
-  Template config with 17 placeholder bindings. WILL NOT RUN until you:
-    1. Replace every joint_index=-1 with a real Unitree motor index
-    2. Set _PLACEHOLDER_JOINTS_REPLACED = True
+programs/g1_POTCONFIG.py
+  Pot-to-joint mapping config for the 24ch MCP3008 teleop rig.
+  Maps pot channels to G1 joints. Uses home-offset calibration at startup.
 
 programs/g1_unified_studio.py
   Single-window replacement for g1_joint_config_ui.py + g1_virtual_pot_sim.py.
