@@ -5,10 +5,10 @@
 .local/
 
 # Cloned dependencies (recreated per machine)
-cyclonedds/
-unitree_sdk2_python/
-unitree_mujoco/
-third_party/unitree_sdk2/
+#cyclonedds/
+#unitree_sdk2_python/
+#unitree_mujoco/
+#third_party/unitree_sdk2/
 
 # Build output
 build/
