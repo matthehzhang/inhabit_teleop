@@ -79,6 +79,8 @@ class JointBindingRecord:
     min_q: Optional[float] = None
     max_q: Optional[float] = None
     average_window_size: int = 1
+    max_dq: Optional[float] = None
+    max_position_error: Optional[float] = None
 
 
 def default_bindings(count: int = 17) -> list[JointBindingRecord]:
@@ -294,6 +296,8 @@ class ProjectIO:
                 f"            min_q={repr(b.min_q)},",
                 f"            max_q={repr(b.max_q)},",
                 f"            average_window_size={b.average_window_size},",
+                f"            max_dq={repr(b.max_dq)},",
+                f"            max_position_error={repr(b.max_position_error)},",
                 "        ),",
             ])
         lines.extend(["    ),", ")", ""])
@@ -623,6 +627,8 @@ class PropertyPanel(ctk.CTkFrame):
         ("min_q", "Min q"),
         ("max_q", "Max q"),
         ("average_window_size", "Avg Window"),
+        ("max_dq", "Max dq (rad/s)"),
+        ("max_position_error", "Max Pos Err (rad)"),
     ]
 
     def __init__(self, parent, state: AppState, on_apply, **kwargs):
@@ -674,6 +680,8 @@ class PropertyPanel(ctk.CTkFrame):
         self._vars["min_q"].set("" if b.min_q is None else str(b.min_q))
         self._vars["max_q"].set("" if b.max_q is None else str(b.max_q))
         self._vars["average_window_size"].set(str(b.average_window_size))
+        self._vars["max_dq"].set("" if b.max_dq is None else str(b.max_dq))
+        self._vars["max_position_error"].set("" if b.max_position_error is None else str(b.max_position_error))
 
     def revert(self) -> None:
         if self._selected is not None:
@@ -725,10 +733,17 @@ class PropertyPanel(ctk.CTkFrame):
         mx = self._parse_optional_float(self._vars["max_q"].get(), "Max q")
         if mn is not None and mx is not None and mn > mx:
             raise ValueError("Min q must be <= Max q")
+        mdq = self._parse_optional_float(self._vars["max_dq"].get(), "Max dq")
+        mpe = self._parse_optional_float(self._vars["max_position_error"].get(), "Max Pos Err")
+        if mdq is not None and mdq <= 0:
+            raise ValueError("Max dq must be > 0")
+        if mpe is not None and mpe <= 0:
+            raise ValueError("Max Pos Err must be > 0")
         return JointBindingRecord(
             name=name, packet_index=pkt, joint_index=jnt,
             kp=kp, kd=kd, scale=scale, offset=offset,
             min_q=mn, max_q=mx, average_window_size=avg,
+            max_dq=mdq, max_position_error=mpe,
         )
 
 
@@ -1128,8 +1143,23 @@ class PotSimTab(ctk.CTkFrame):
             from unitree_sdk2py.idl.unitree_hg.msg.dds_ import LowState_ as HG_LowState
             from unitree_sdk2py.idl.unitree_hg.msg.dds_ import MotorCmd_ as HG_MotorCmd
             from unitree_sdk2py.utils.crc import CRC
+            from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient
 
             ChannelFactoryInitialize(domain_id, iface)
+
+            if domain_id == 0:
+                print("Releasing high-level control via MotionSwitcher...")
+                msc = MotionSwitcherClient()
+                msc.SetTimeout(5.0)
+                msc.Init()
+                status, result = msc.CheckMode()
+                while result['name']:
+                    print(f"  Releasing mode: {result['name']}")
+                    msc.ReleaseMode()
+                    status, result = msc.CheckMode()
+                    time.sleep(1)
+                print("High-level control released.")
+
             pub = ChannelPublisher(CMD_TOPIC, HG_LowCmd)
             pub.Init()
             sub = ChannelSubscriber(STATE_TOPIC, HG_LowState)
@@ -1143,10 +1173,14 @@ class PotSimTab(ctk.CTkFrame):
                            for _ in range(NUM_MOTORS)],
                 reserve=[0, 0, 0, 0], crc=0)
 
+            prev_targets: list[Optional[float]] = [None] * len(bindings)
+            latest_state: Optional[HG_LowState] = None
+
             while not self._stop_event.is_set():
                 msg = sub.Read()
                 if msg is not None:
                     low_cmd.mode_machine = msg.mode_machine
+                    latest_state = msg
 
                 with self._lock:
                     vals = list(self._slider_values)
@@ -1157,6 +1191,32 @@ class PotSimTab(ctk.CTkFrame):
                     if bi >= len(vals):
                         continue
                     tgt = self._apply_transform(vals[bi], b)
+
+                    # stray signal rejection
+                    if b.max_angle_jump is not None and prev_targets[bi] is not None:
+                        if abs(tgt - prev_targets[bi]) > b.max_angle_jump:
+                            tgt = prev_targets[bi]
+
+                    # velocity clamp
+                    if b.max_dq is not None and prev_targets[bi] is not None:
+                        max_delta = b.max_dq * COMMAND_DT_SEC
+                        delta = tgt - prev_targets[bi]
+                        if delta > max_delta:
+                            tgt = prev_targets[bi] + max_delta
+                        elif delta < -max_delta:
+                            tgt = prev_targets[bi] - max_delta
+
+                    # position error clamp
+                    if b.max_position_error is not None and latest_state is not None:
+                        actual_q = latest_state.motor_state[b.joint_index].q
+                        error = tgt - actual_q
+                        if error > b.max_position_error:
+                            tgt = actual_q + b.max_position_error
+                        elif error < -b.max_position_error:
+                            tgt = actual_q - b.max_position_error
+
+                    prev_targets[bi] = tgt
+
                     mc = low_cmd.motor_cmd[b.joint_index]
                     mc.mode = 1
                     mc.q = tgt

@@ -6,6 +6,7 @@
 
 import importlib.util
 import math
+import signal
 import struct
 import sys
 import time
@@ -35,6 +36,7 @@ from unitree_sdk2py.idl.unitree_hg.msg.dds_ import HandCmd_ as HG_HandCmd  # noq
 from unitree_sdk2py.idl.unitree_hg.msg.dds_ import MotorCmd_ as HG_MotorCmd  # noqa: E402
 from unitree_sdk2py.idl.default import unitree_hg_msg_dds__HandCmd_  # noqa: E402
 from unitree_sdk2py.utils.crc import CRC  # noqa: E402
+from unitree_sdk2py.comm.motion_switcher.motion_switcher_client import MotionSwitcherClient  # noqa: E402
 
 
 CMD_TOPIC = "rt/lowcmd"
@@ -70,6 +72,9 @@ class JointBinding:
     max_q: Optional[float] = None
     average_window_size: int = 1
     hand: Optional[str] = None  # "left" or "right" for dex3 hand joints, None for body
+    max_dq: Optional[float] = None  # rad/s — rate-limit on target position change
+    max_position_error: Optional[float] = None  # rad — max |q_target - q_actual|
+    max_angle_jump: Optional[float] = None  # rad — reject single-tick jumps larger than this
 
 
 @dataclass(frozen=True)
@@ -253,6 +258,12 @@ class G1SerialBridge:
                 and binding.min_q > binding.max_q
             ):
                 raise ValueError(f"{binding.name}: min_q must be <= max_q")
+            if binding.max_dq is not None and binding.max_dq <= 0:
+                raise ValueError(f"{binding.name}: max_dq must be > 0")
+            if binding.max_position_error is not None and binding.max_position_error <= 0:
+                raise ValueError(f"{binding.name}: max_position_error must be > 0")
+            if binding.max_angle_jump is not None and binding.max_angle_jump <= 0:
+                raise ValueError(f"{binding.name}: max_angle_jump must be > 0")
 
         self._config = config
         self._crc = CRC()
@@ -291,10 +302,30 @@ class G1SerialBridge:
             deque(maxlen=binding.average_window_size) for binding in config.joint_bindings
         ]
         self._last_targets = [0.0 for _ in config.joint_bindings]
+        self._prev_published_targets: list[Optional[float]] = [None for _ in config.joint_bindings]
         self._homed = False
         self._home_voltages: list[float] = [0.0] * config.packet_value_count
         self._home_positions: list[float] = [0.0] * NUM_MOTORS
         self._init_low_cmd()
+
+    def release_high_level_control(self) -> None:
+        """Release the robot's built-in controller (e.g. walking mode) via MotionSwitcher.
+
+        Must be called after ChannelFactoryInitialize and before publishing commands.
+        The robot will go limp on released joints — ensure it is supported.
+        """
+        print("Releasing high-level control via MotionSwitcher...")
+        msc = MotionSwitcherClient()
+        msc.SetTimeout(5.0)
+        msc.Init()
+
+        status, result = msc.CheckMode()
+        while result['name']:
+            print(f"  Releasing mode: {result['name']}")
+            msc.ReleaseMode()
+            status, result = msc.CheckMode()
+            time.sleep(1)
+        print("High-level control released.")
 
     def init(self) -> None:
         self._lowcmd_publisher = ChannelPublisher(CMD_TOPIC, HG_LowCmd)
@@ -373,6 +404,12 @@ class G1SerialBridge:
                 mapped_target = max(binding.min_q, mapped_target)
             if binding.max_q is not None:
                 mapped_target = min(binding.max_q, mapped_target)
+
+            # stray signal rejection: discard single-tick jumps beyond threshold
+            if binding.max_angle_jump is not None and self._prev_published_targets[axis] is not None:
+                if abs(mapped_target - self._prev_published_targets[axis]) > binding.max_angle_jump:
+                    mapped_target = self._prev_published_targets[axis]
+
             history = self._input_history[axis]
             if not history:
                 history.extend([mapped_target] * binding.average_window_size)
@@ -381,6 +418,28 @@ class G1SerialBridge:
 
             filtered_target = sum(history) / len(history)
             self._last_targets[axis] = mapped_target
+
+            # velocity clamp: limit how fast q_target can change per tick
+            if binding.max_dq is not None and self._prev_published_targets[axis] is not None:
+                prev = self._prev_published_targets[axis]
+                max_delta = binding.max_dq * COMMAND_DT_SEC
+                delta = filtered_target - prev
+                if delta > max_delta:
+                    filtered_target = prev + max_delta
+                elif delta < -max_delta:
+                    filtered_target = prev - max_delta
+
+            # position error clamp: limit force by capping |q_target - q_actual|
+            if binding.max_position_error is not None and self._latest_state is not None:
+                if binding.hand is None:
+                    actual_q = self._latest_state.motor_state[binding.joint_index].q
+                    error = filtered_target - actual_q
+                    if error > binding.max_position_error:
+                        filtered_target = actual_q + binding.max_position_error
+                    elif error < -binding.max_position_error:
+                        filtered_target = actual_q - binding.max_position_error
+
+            self._prev_published_targets[axis] = filtered_target
 
             if binding.hand is None:
                 motor_cmd = self._low_cmd.motor_cmd[binding.joint_index]
@@ -418,6 +477,46 @@ class G1SerialBridge:
         if self._right_hand_publisher is not None:
             self._right_hand_publisher.Write(self._right_hand_cmd)
 
+    def graceful_stop(self, ramp_duration: float = 2.0) -> None:
+        """Hold current joint positions, then ramp kp to zero over ramp_duration seconds."""
+        if self._lowcmd_publisher is None or self._latest_state is None:
+            return
+
+        print("\nGraceful stop: holding position...")
+
+        # snapshot actual positions for all controlled joints
+        hold_targets: dict[int, float] = {}
+        for binding in self._config.joint_bindings:
+            if binding.hand is None:
+                hold_targets[binding.joint_index] = (
+                    self._latest_state.motor_state[binding.joint_index].q
+                )
+
+        # ramp kp from current to 0
+        start = time.monotonic()
+        while True:
+            elapsed = time.monotonic() - start
+            ratio = min(elapsed / ramp_duration, 1.0)
+
+            for binding in self._config.joint_bindings:
+                if binding.hand is not None:
+                    continue
+                mc = self._low_cmd.motor_cmd[binding.joint_index]
+                mc.q = hold_targets[binding.joint_index]
+                mc.dq = 0.0
+                mc.kp = binding.kp * (1.0 - ratio)
+                mc.kd = binding.kd
+                mc.tau = 0.0
+
+            self._low_cmd.crc = self._crc.Crc(self._low_cmd)
+            self._lowcmd_publisher.Write(self._low_cmd)
+
+            if ratio >= 1.0:
+                break
+            time.sleep(COMMAND_DT_SEC)
+
+        print(f"Graceful stop complete ({ramp_duration:.1f}s ramp). Motors are limp.")
+
     def _init_low_cmd(self) -> None:
         self._low_cmd.mode_pr = 0
         self._low_cmd.mode_machine = 0
@@ -443,6 +542,9 @@ def run_bridge(config: BridgeConfig, argv: Optional[list[str]] = None) -> int:
         f"interface={network_interface}",
     )
 
+    if not sim_mode:
+        bridge.release_high_level_control()
+
     bridge.init()
     bridge.wait_for_first_state()
 
@@ -454,9 +556,22 @@ def run_bridge(config: BridgeConfig, argv: Optional[list[str]] = None) -> int:
             for binding in config.joint_bindings
         ),
     )
+    print("Press Ctrl+C to graceful stop.")
+
+    stopping = False
+
+    def _sigint_handler(sig, frame):
+        nonlocal stopping
+        if stopping:
+            # second Ctrl+C during ramp — ignore
+            print("\nAlready stopping, please wait...")
+            return
+        stopping = True
+
+    signal.signal(signal.SIGINT, _sigint_handler)
 
     next_tick = time.monotonic()
-    while True:
+    while not stopping:
         bridge.update_state()
         packet = serial_reader.read_latest_packet()
         if packet is not None:
@@ -469,6 +584,8 @@ def run_bridge(config: BridgeConfig, argv: Optional[list[str]] = None) -> int:
             time.sleep(sleep_time)
         else:
             next_tick = time.monotonic()
+
+    bridge.graceful_stop()
 
 
 def load_config_from_python_file(path: str | Path) -> BridgeConfig:
