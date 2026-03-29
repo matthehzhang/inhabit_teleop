@@ -11,7 +11,8 @@ This project includes:
 - For Hardware, Purchase (~20-30 Dollar Build Cost)
 - https://www.amazon.com/dp/B07SJ5RZJ4?ref=ppx_yo2ov_dt_b_fed_asin_title
 - https://www.amazon.com/dp/B00MCK7JMS?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1
-- And use any type of PLA to 3D print the arm (CAD Files in teleopv2.zip) 
+- And use any type of PLA to 3D print the arm (CAD Files in teleopv2.zip)
+- 3D print file for bambu is RememberToAddSupports.gcoode (like the name suggests, add supports yourself)
 
 ## Supported environment
 
