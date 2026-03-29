@@ -26,14 +26,14 @@ BRIDGE_CONFIG = BridgeConfig(
     name="pot teleop",
     packet_value_count=24,
     joint_bindings=(
-        # chip 0: left arm + waist yaw
-        JointBinding(name="left_shoulder_pitch", packet_index=0,  joint_index=15, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7),
-        JointBinding(name="left_shoulder_roll",  packet_index=1,  joint_index=16, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7),
-        JointBinding(name="left_shoulder_yaw",   packet_index=2,  joint_index=17, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7),
-        JointBinding(name="left_elbow",          packet_index=3,  joint_index=18, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7),
-        JointBinding(name="left_wrist_roll",     packet_index=4,  joint_index=19, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7),
-        JointBinding(name="left_wrist_pitch",    packet_index=6,  joint_index=20, kp=40.0, kd=1.0, scale=0.0),
-        JointBinding(name="left_wrist_yaw",      packet_index=5,  joint_index=21, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7),
+        # chip 0: right arm + waist yaw
+        JointBinding(name="right_shoulder_pitch", packet_index=0,  joint_index=22, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7,  max_dq=2.5),
+        JointBinding(name="right_shoulder_roll",  packet_index=1,  joint_index=23, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7,  max_dq=2.5),
+        JointBinding(name="right_shoulder_yaw",   packet_index=2,  joint_index=24, kp=40.0, kd=1.0, scale=POT_SCALE, max_position_error=0.7,  max_dq=2.5),
+        JointBinding(name="right_elbow",          packet_index=3,  joint_index=25, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7,  max_dq=2.5),
+        JointBinding(name="right_wrist_roll",     packet_index=4,  joint_index=26, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7,  max_dq=2.5),
+        JointBinding(name="right_wrist_pitch",    packet_index=6,  joint_index=27, kp=40.0, kd=1.0, scale=0.0),
+        JointBinding(name="right_wrist_yaw",      packet_index=5,  joint_index=28, kp=40.0, kd=1.0, scale=-POT_SCALE, max_position_error=0.7,  max_dq=2.5),
         #JointBinding(name="waist_yaw",           packet_index=7,  joint_index=12, kp=40.0, kd=2.0, scale=POT_SCALE),
 
         # chip 1: right arm + waist roll

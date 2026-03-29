@@ -2,17 +2,44 @@
 
 Teleoperation tooling for a Unitree G1 humanoid robot, driven by potentiometer inputs over serial.
 
+## Renders
+
+These renders show the teleoperation rig and its intended G1 workflow.
+
+| Teleop rig overview | G1 interaction view |
+| --- | --- |
+| ![Project render 1](Render1.png) | ![Project render 2](Render2.png) |
+
+| Controller detail | Alternate project view |
+| --- | --- |
+| ![Project render 3](Render3.png) | ![Project render 4](Render4.png) |
+
+## Purpose
+
+`inhabit_teleop` is a hardware-to-robot control stack for experimenting with physical teleoperation on the Unitree G1.
+
+The core idea is:
+
+- read live potentiometer values from an ESP32-based controller over USB serial
+- map those values onto selected G1 joints with configurable gains, scaling, offsets, and limits
+- publish low-level joint commands over DDS to either a real robot or the local MuJoCo simulation
+
+The repo also includes a GUI workflow for building and testing those mappings before moving to hardware. That makes it useful both as a direct teleop bridge and as a calibration / iteration environment for custom control rigs.
+
 This project includes:
 
 - **Python bridge programs** that read potentiometer data from an ESP32 over serial and send joint commands to the robot via DDS
 - **A GUI studio** for editing joint mappings and testing with virtual potentiometer sliders
 - **ESP32-S3 firmware** for reading potentiometers (internal ADC or MCP3008 over SPI)
 
-- For Hardware, Purchase (~20-30 Dollar Build Cost)
-- https://www.amazon.com/dp/B07SJ5RZJ4?ref=ppx_yo2ov_dt_b_fed_asin_title
-- https://www.amazon.com/dp/B00MCK7JMS?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1
-- And use any type of PLA to 3D print the arm (CAD Files in teleopv2.zip)
-- 3D print file for bambu is RememberToAddSupports.gcoode (like the name suggests, add supports yourself)
+## Hardware notes
+
+The physical controller build is intended to stay inexpensive, roughly in the $20 to $30 range before printing.
+
+- Reference part link 1: https://www.amazon.com/dp/B07SJ5RZJ4?ref=ppx_yo2ov_dt_b_fed_asin_title
+- Reference part link 2: https://www.amazon.com/dp/B00MCK7JMS?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1
+- Print material: any standard PLA should work for the arm components
+- CAD source: `teleopv2.zip`
 
 ## Supported environment
 
@@ -155,7 +182,7 @@ python programs/g1_virtual_pot_sim.py programs/uitest1.g1config.json
 Connect your ESP32 via USB, then:
 
 ```bash
-python programs/run_g1_bridge.py programs/g1_left_wrist_bridge_config.py /dev/ttyACM0 <network_interface>
+python programs/scratch/run_g1_bridge.py programs/scratch/g1_left_wrist_bridge_config.py /dev/ttyACM0 <network_interface>
 ```
 
 Replace `<network_interface>` with the NIC connected to the robot (e.g. `enp2s0`). Find yours with `ip link`.
@@ -169,7 +196,7 @@ python programs/run_g1_bridge_20ch.py programs/g1_POTCONFIG.py /dev/ttyACM0 <net
 ### Legacy bridge (hardcoded left-wrist config)
 
 ```bash
-python programs/g1BRIDGE.py
+python programs/scratch/g1BRIDGE.py
 ```
 
 ## ESP32-S3 firmware
