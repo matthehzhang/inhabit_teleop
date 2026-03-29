@@ -8,6 +8,11 @@ This project includes:
 - **A GUI studio** for editing joint mappings and testing with virtual potentiometer sliders
 - **ESP32-S3 firmware** for reading potentiometers (internal ADC or MCP3008 over SPI)
 
+- For Hardware, Purchase (~20-30 Dollar Build Cost)
+- https://www.amazon.com/dp/B07SJ5RZJ4?ref=ppx_yo2ov_dt_b_fed_asin_title
+- https://www.amazon.com/dp/B00MCK7JMS?ref=ppx_yo2ov_dt_b_fed_asin_title&th=1
+- And use any type of PLA to 3D print the arm (CAD Files in teleopv2.zip) 
+
 ## Supported environment
 
 The supported setup path for new users is:
